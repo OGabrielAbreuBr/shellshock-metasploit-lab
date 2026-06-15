@@ -1,0 +1,31 @@
+services:
+  attacker:
+    build:
+      context: ./attacker
+    image: metasploit-attacker:local
+    container_name: attacker
+    command: ["sleep", "infinity"]
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./metasploit:/workspace/metasploit:ro
+    networks:
+      pentest_net:
+        ipv4_address: 172.28.0.10
+
+  victim:
+    build:
+      context: ./victim
+    image: shellshock-victim:local
+    container_name: victim
+    networks:
+      pentest_net:
+        ipv4_address: 172.28.0.20
+
+networks:
+  pentest_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
