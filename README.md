@@ -6,10 +6,10 @@ e Metasploit.
 
 ## Integrantes
 
-- Nome 1 - NUSP/RA:
-- Nome 2 - NUSP/RA:
-- Nome 3 - NUSP/RA:
-- Nome 4 - NUSP/RA:
+- Gabriel de Andrade Abreu – 14571362
+- Jesus Sena Fernandes – 12697470
+- Rafael de Almeida – 11872028
+- Letícia Raddatz Jönck – 14589066
 
 ## Objetivo
 
